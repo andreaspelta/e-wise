@@ -13,7 +13,6 @@ st.set_page_config(
 @dataclass
 class ActivityItem:
     name: str
-    diameter_in: float
     duration_value: float
     duration_unit: str
 
@@ -29,6 +28,7 @@ class PhaseItem:
     faults: str
     fractures: str
     depleted_levels: str
+    diameter_in: float
     activities: List[ActivityItem]
 
 
@@ -171,7 +171,7 @@ def add_phase_form() -> None:
         with col2:
             activity_count = st.number_input("Activities", min_value=1, max_value=10, value=1)
 
-        details_col1, details_col2, details_col3 = st.columns(3)
+        details_col1, details_col2, details_col3, details_col4 = st.columns(4)
         with details_col1:
             pore_gradient_sg = st.text_input("Pore gradient (s.g.)")
             mud_type = st.selectbox("Mud Type", ["WBM", "OBM"])
@@ -183,11 +183,13 @@ def add_phase_form() -> None:
         with details_col3:
             lithology = st.selectbox("Lithology", st.session_state.lithology_library)
             depleted_levels = st.selectbox("Depleted Levels", ["Yes", "No"])
+        with details_col4:
+            diameter = st.number_input("Diameter (in)", min_value=0.0, step=0.25, value=8.5, key="new_phase_diameter")
 
         activities: List[ActivityItem] = []
         for i in range(activity_count):
             st.markdown(f"**Activity {i + 1}**")
-            c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+            c1, c2, c3 = st.columns([3, 1, 1])
             with c1:
                 activity_name = st.selectbox(
                     "Activity",
@@ -196,13 +198,11 @@ def add_phase_form() -> None:
                     label_visibility="collapsed",
                 )
             with c2:
-                diameter = st.number_input("Diameter (in)", min_value=0.0, step=0.25, value=8.5, key=f"new_activity_diam_{i}")
-            with c3:
                 duration = st.number_input("Time", min_value=0.0, step=0.5, value=6.0, key=f"new_activity_time_{i}")
-            with c4:
+            with c3:
                 unit = st.selectbox("Unit", ["hours", "days"], key=f"new_activity_unit_{i}")
 
-            activities.append(ActivityItem(activity_name, float(diameter), float(duration), unit))
+            activities.append(ActivityItem(activity_name, float(duration), unit))
 
         if st.button("Add phase to sequence", type="primary", use_container_width=True):
             st.session_state.phases.append(
@@ -216,6 +216,7 @@ def add_phase_form() -> None:
                     faults=faults,
                     fractures=fractures,
                     depleted_levels=depleted_levels,
+                    diameter_in=float(diameter),
                     activities=activities,
                 )
             )
@@ -240,11 +241,12 @@ def render_sequence() -> None:
                 - **Faults**: {phase.faults}
                 - **Fractures**: {phase.fractures}
                 - **Depleted Levels**: {phase.depleted_levels}
+                - **Diameter (in)**: {phase.diameter_in}
                 """
             )
             for act_idx, act in enumerate(phase.activities, start=1):
                 st.markdown(
-                    f"- **Activity {act_idx} · {act.name}** — Diameter: {act.diameter_in} in · Time: {act.duration_value} {act.duration_unit}"
+                    f"- **Activity {act_idx} · {act.name}** — Time: {act.duration_value} {act.duration_unit}"
                 )
 
             if not st.session_state.sequence_locked and st.button(
