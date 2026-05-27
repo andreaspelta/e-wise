@@ -145,10 +145,15 @@ def render_upload() -> None:
     upload = st.file_uploader(
         "Upload here a screenshot of the path of your wellcost design, otherwise build the sequence of operations",
         type=["png", "jpg", "jpeg", "webp", "pdf"],
+        key="path_screenshot_uploader",
     )
-    if upload is not None:
-        st.session_state.path_screenshot = upload
-        st.info("Upload detected. Build the sequence of operations is disabled.")
+
+    if upload is None:
+        st.session_state.path_screenshot = None
+        return
+
+    st.session_state.path_screenshot = upload
+    st.info("Upload detected. Build the sequence of operations is disabled.")
 
 
 def add_phase_form() -> None:
