@@ -159,6 +159,7 @@ def add_phase_form() -> None:
 
     with st.container(border=True):
         st.markdown("#### Add next phase")
+        st.caption("consider phases after BOP installation only")
         col1, col2 = st.columns([2, 1])
         with col1:
             phase_name = st.selectbox("Phase name", st.session_state.phase_library, key="new_phase_name")
@@ -251,6 +252,10 @@ def render_sequence() -> None:
 def render_freeze_controls() -> None:
     if st.session_state.sequence_locked:
         st.success("Sequence frozen.")
+        if st.button("Unfreeze sequence", use_container_width=True):
+            st.session_state.sequence_locked = False
+            st.success("Sequence unfrozen. Editing is enabled again.")
+            st.rerun()
         return
 
     if st.button("Freeze sequence", use_container_width=True, type="primary"):
