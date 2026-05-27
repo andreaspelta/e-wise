@@ -3,7 +3,7 @@ from dataclasses import dataclass, asdict
 from typing import List
 
 st.set_page_config(
-    page_title="E-WISE | Well Architecture Studio",
+    page_title="E-WISE | Blowout probability data collection",
     page_icon="🛢️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -58,22 +58,23 @@ def render_theme() -> None:
         """
         <style>
         :root {
-            --bg: #0e1117;
-            --panel: #151924;
-            --panel-2: #1b2130;
-            --border: #2a3348;
-            --text: #e6edf8;
-            --subtext: #9fb0cf;
-            --brand: #4da3ff;
-            --brand-2: #64c8ff;
-            --ok: #45d483;
+            --bg: #edf5ff;
+            --panel: #ffffff;
+            --panel-2: #f4f8ff;
+            --border: #bfd4f6;
+            --text: #102847;
+            --subtext: #49668d;
+            --brand: #2d7ef7;
+            --brand-2: #5ba8ff;
+            --phase: #f4c84c;
+            --operations: #d9dee8;
         }
         .stApp {
-            background: radial-gradient(1200px 500px at 20% -20%, #1f2c49 0%, var(--bg) 60%);
+            background: radial-gradient(1000px 450px at 15% -20%, #dce9ff 0%, var(--bg) 62%);
             color: var(--text);
         }
         .title-card {
-            background: linear-gradient(135deg, rgba(77,163,255,0.20), rgba(100,200,255,0.08));
+            background: linear-gradient(135deg, rgba(45,126,247,0.25), rgba(91,168,255,0.08));
             border: 1px solid var(--border);
             border-radius: 14px;
             padding: 1rem 1.2rem;
@@ -91,6 +92,32 @@ def render_theme() -> None:
             border-radius: 10px;
             padding: .7rem .9rem;
             margin-bottom: .6rem;
+        }
+        .slide-preview {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: .65rem;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #f8fbff;
+            padding: .9rem;
+            margin-top: .8rem;
+        }
+        .slide-phase {
+            background: var(--phase);
+            color: #2d2a20;
+            border-radius: 10px;
+            padding: .75rem .9rem;
+            border: 1px solid #e3b73f;
+            font-weight: 600;
+        }
+        .slide-op {
+            background: var(--operations);
+            color: #2f3e57;
+            border-radius: 9px;
+            padding: .55rem .8rem;
+            border: 1px solid #c7cfdd;
+            margin-top: .45rem;
         }
         .small-muted { color: var(--subtext); font-size: 0.9rem; }
         </style>
@@ -148,7 +175,7 @@ def sidebar_admin() -> None:
                     ]
 
         st.markdown("---")
-        st.caption("Designed for engineering workflows · Dark enterprise UI")
+        st.caption("Designed for engineering workflows · Light blue visual style")
     return page
 
 
@@ -252,8 +279,14 @@ def main() -> None:
     st.markdown(
         """
         <div class='title-card'>
-          <h2 style='margin:0;'>Well Architecture Studio</h2>
-          <p style='margin:.4rem 0 0 0; color:#c3d4f2;'>Design drilling phases and operation sequence for blowout probability evaluation input.</p>
+          <h2 style='margin:0;'>Blowout probability data collection</h2>
+          <p style='margin:.4rem 0 0 0; color:#2f5b8f;'>Design drilling phases and operation sequence for blowout probability evaluation input.</p>
+          <div class='slide-preview'>
+            <div class='slide-phase'>PHASE</div>
+            <div class='slide-op'>Operation 1</div>
+            <div class='slide-op'>Operation 2</div>
+            <div class='slide-op'>Operation 3</div>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
