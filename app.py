@@ -161,15 +161,11 @@ def render_upload() -> None:
         return
 
     st.session_state.path_screenshot = upload
-    st.info("Upload detected. Build the sequence of operations is disabled.")
+    st.info("Upload detected. You can still use the Build sequence tab to define operations.")
 
 
 def add_phase_form() -> None:
     st.markdown("### Build sequence")
-    if st.session_state.path_screenshot is not None:
-        st.warning("Build the sequence is disabled because a screenshot has been uploaded.")
-        return
-
     with st.container(border=True):
         st.markdown("#### Add next phase")
         st.caption("consider phases after BOP installation only")
