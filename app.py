@@ -57,6 +57,10 @@ DEFAULT_LITHOLOGY_LIBRARY = [
     "Carbonate",
 ]
 
+WELLHEAD_TYPES = ["Unitized", "Flanged"]
+XTREE_TYPES = ["Dry tee", "Subsea HXT", "Subsea VXT"]
+SECONDARY_INTERVENTION_OPTIONS = ["None", "Single ROV", "Dual ROV"]
+
 
 def bootstrap_state() -> None:
     if "phase_library" not in st.session_state:
@@ -71,6 +75,10 @@ def bootstrap_state() -> None:
         st.session_state.sequence_locked = False
     if "path_screenshot" not in st.session_state:
         st.session_state.path_screenshot = None
+    if "secondary_intervention" not in st.session_state:
+        st.session_state.secondary_intervention = "None"
+    if "acoustic_system" not in st.session_state:
+        st.session_state.acoustic_system = False
 
 
 def sidebar_admin() -> None:
@@ -79,7 +87,7 @@ def sidebar_admin() -> None:
         builder_label = "Well architecture builder ✅" if st.session_state.sequence_locked else "Well architecture builder"
         page = st.radio(
             "Go to",
-            [builder_label, "Risk Inputs (coming soon)", "Review & Submit (coming soon)"],
+            [builder_label, "Barriers"],
             index=0,
             label_visibility="collapsed",
         )
@@ -256,6 +264,118 @@ def render_sequence() -> None:
                 st.rerun()
 
 
+def render_barriers_page() -> None:
+    st.header("Barriers")
+    st.write("Collect primary and secondary barrier configuration for the selected well architecture.")
+
+    top_col1, top_col2 = st.columns(2)
+    with top_col1:
+        st.selectbox("Wellhead Type", WELLHEAD_TYPES, key="wellhead_type")
+    with top_col2:
+        st.selectbox("Xtree", XTREE_TYPES, key="xtree_type")
+
+    with st.expander("BOP Stack", expanded=True):
+        annular_col, pipe_col = st.columns(2)
+        with annular_col:
+            st.number_input(
+                "Annular Preventer",
+                min_value=1,
+                max_value=2,
+                step=1,
+                value=1,
+                key="annular_preventer_count",
+            )
+        with pipe_col:
+            st.number_input(
+                "Pipe Ram",
+                min_value=0,
+                step=1,
+                value=0,
+                help="able to close against drillpipes (no shear)",
+                key="pipe_ram_count",
+            )
+            st.caption("able to close against drillpipes (no shear)")
+
+        casing_col, od_col = st.columns(2)
+        with casing_col:
+            casing_ram_count = st.number_input(
+                "Casing Ram",
+                min_value=0,
+                step=1,
+                value=0,
+                help="able to close against casing (no shear)",
+                key="casing_ram_count",
+            )
+            st.caption("able to close against casing (no shear)")
+        with od_col:
+            with st.expander("Casing OD", expanded=casing_ram_count > 0):
+                st.number_input(
+                    "Casing OD (in)",
+                    min_value=0.0,
+                    step=0.125,
+                    value=9.625,
+                    disabled=casing_ram_count == 0,
+                    key="casing_od_in",
+                )
+                if casing_ram_count == 0:
+                    st.caption("Available only when Casing Ram is greater than zero.")
+
+        shear_col1, shear_col2 = st.columns(2)
+        with shear_col1:
+            st.number_input(
+                "Blind Shear Ram",
+                min_value=0,
+                step=1,
+                value=0,
+                help="able to shear drill pipes",
+                key="blind_shear_ram_count",
+            )
+            st.caption("able to shear drill pipes")
+        with shear_col2:
+            st.number_input(
+                "Casing Shear Ram",
+                min_value=0,
+                step=1,
+                value=0,
+                help="able to shear casing joints",
+                key="casing_shear_ram_count",
+            )
+            st.caption("able to shear casing joints")
+
+    with st.expander("Secondary Intervention System", expanded=True):
+        secondary_intervention = st.radio(
+            "ROV availability",
+            SECONDARY_INTERVENTION_OPTIONS,
+            key="secondary_intervention",
+            horizontal=True,
+        )
+        if secondary_intervention == "None":
+            st.session_state.acoustic_system = False
+        st.checkbox(
+            "Acoustic System",
+            key="acoustic_system",
+            disabled=secondary_intervention == "None",
+        )
+        if secondary_intervention == "None":
+            st.caption("Select Single ROV or Dual ROV to enable additional secondary intervention fields.")
+
+    with st.expander("Barrier selection summary", expanded=False):
+        st.markdown(
+            f"""
+            - **Wellhead Type**: {st.session_state.wellhead_type}
+            - **Xtree**: {st.session_state.xtree_type}
+            - **Annular Preventer**: {st.session_state.annular_preventer_count}
+            - **Pipe Ram**: {st.session_state.pipe_ram_count}
+            - **Casing Ram**: {st.session_state.casing_ram_count}
+            - **Casing OD (in)**: {st.session_state.casing_od_in if st.session_state.casing_ram_count > 0 else '-'}
+            - **Blind Shear Ram**: {st.session_state.blind_shear_ram_count}
+            - **Casing Shear Ram**: {st.session_state.casing_shear_ram_count}
+            - **Secondary Intervention System**: {st.session_state.secondary_intervention}
+            - **Acoustic System**: {'Yes' if st.session_state.acoustic_system else 'No'}
+            """
+        )
+
+
 def render_freeze_controls() -> None:
     if st.session_state.sequence_locked:
         st.success("Sequence frozen.")
@@ -278,8 +398,8 @@ def main() -> None:
     st.title("Blowout probability data collection")
     st.write("Design drilling phases and activity sequence for blowout probability evaluation input.")
 
-    if "Well architecture builder" not in page:
-        st.warning("This module is planned for the next build iteration.")
+    if page == "Barriers":
+        render_barriers_page()
         return
 
     render_upload()
