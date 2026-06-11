@@ -266,7 +266,7 @@ def render_sequence() -> None:
 
 def render_barriers_page() -> None:
     st.header("Barriers")
-    st.write("Collect primary and secondary barrier configuration for the selected well architecture.")
+    st.write("Collect secondary barrier configuration for the selected well architecture.")
 
     top_col1, top_col2 = st.columns(2)
     with top_col1:
@@ -275,89 +275,81 @@ def render_barriers_page() -> None:
         st.selectbox("Xtree", XTREE_TYPES, key="xtree_type")
 
     with st.expander("BOP Stack", expanded=True):
-        annular_col, pipe_col = st.columns(2)
-        with annular_col:
-            st.number_input(
-                "Annular Preventer",
-                min_value=1,
-                max_value=2,
-                step=1,
-                value=1,
-                key="annular_preventer_count",
-            )
-        with pipe_col:
-            st.number_input(
-                "Pipe Ram",
-                min_value=0,
-                step=1,
-                value=0,
-                help="able to close against drillpipes (no shear)",
-                key="pipe_ram_count",
-            )
-            st.caption("able to close against drillpipes (no shear)")
+        st.number_input(
+            "Annular Preventer",
+            min_value=1,
+            max_value=2,
+            step=1,
+            value=1,
+            key="annular_preventer_count",
+        )
 
-        casing_col, od_col = st.columns(2)
-        with casing_col:
-            casing_ram_count = st.number_input(
-                "Casing Ram",
-                min_value=0,
-                step=1,
-                value=0,
-                help="able to close against casing (no shear)",
-                key="casing_ram_count",
-            )
-            st.caption("able to close against casing (no shear)")
-        with od_col:
-            with st.expander("Casing OD", expanded=casing_ram_count > 0):
-                st.number_input(
-                    "Casing OD (in)",
-                    min_value=0.0,
-                    step=0.125,
-                    value=9.625,
-                    disabled=casing_ram_count == 0,
-                    key="casing_od_in",
-                )
-                if casing_ram_count == 0:
-                    st.caption("Available only when Casing Ram is greater than zero.")
+        st.number_input(
+            "Pipe Ram",
+            min_value=0,
+            step=1,
+            value=0,
+            help="able to close against drillpipes (no shear)",
+            key="pipe_ram_count",
+        )
+        st.caption("able to close against drillpipes (no shear)")
 
-        shear_col1, shear_col2 = st.columns(2)
-        with shear_col1:
-            st.number_input(
-                "Blind Shear Ram",
-                min_value=0,
-                step=1,
-                value=0,
-                help="able to shear drill pipes",
-                key="blind_shear_ram_count",
-            )
-            st.caption("able to shear drill pipes")
-        with shear_col2:
-            st.number_input(
-                "Casing Shear Ram",
-                min_value=0,
-                step=1,
-                value=0,
-                help="able to shear casing joints",
-                key="casing_shear_ram_count",
-            )
-            st.caption("able to shear casing joints")
+        casing_ram_count = st.number_input(
+            "Casing Ram",
+            min_value=0,
+            step=1,
+            value=0,
+            help="able to close against casing (no shear)",
+            key="casing_ram_count",
+        )
+        st.caption("able to close against casing (no shear)")
+
+        casing_od_values = []
+        if casing_ram_count > 0:
+            with st.expander("Casing OD", expanded=True):
+                for casing_ram_index in range(1, casing_ram_count + 1):
+                    casing_od_values.append(
+                        st.number_input(
+                            f"Casing Ram {casing_ram_index} OD (in)",
+                            min_value=0.0,
+                            step=0.125,
+                            value=9.625,
+                            key=f"casing_od_in_{casing_ram_index}",
+                        )
+                    )
+        st.session_state.casing_od_values = casing_od_values
+
+        st.number_input(
+            "Blind Shear Ram",
+            min_value=0,
+            step=1,
+            value=0,
+            help="able to shear drill pipes",
+            key="blind_shear_ram_count",
+        )
+        st.caption("able to shear drill pipes")
+
+        st.number_input(
+            "Casing Shear Ram",
+            min_value=0,
+            step=1,
+            value=0,
+            help="able to shear casing joints",
+            key="casing_shear_ram_count",
+        )
+        st.caption("able to shear casing joints")
 
     with st.expander("Secondary Intervention System", expanded=True):
-        secondary_intervention = st.radio(
+        st.radio(
             "ROV availability",
             SECONDARY_INTERVENTION_OPTIONS,
             key="secondary_intervention",
             horizontal=True,
         )
-        if secondary_intervention == "None":
-            st.session_state.acoustic_system = False
         st.checkbox(
             "Acoustic System",
             key="acoustic_system",
-            disabled=secondary_intervention == "None",
         )
-        if secondary_intervention == "None":
-            st.caption("Select Single ROV or Dual ROV to enable additional secondary intervention fields.")
 
     with st.expander("Barrier selection summary", expanded=False):
         st.markdown(
@@ -367,7 +359,7 @@ def render_barriers_page() -> None:
             - **Annular Preventer**: {st.session_state.annular_preventer_count}
             - **Pipe Ram**: {st.session_state.pipe_ram_count}
             - **Casing Ram**: {st.session_state.casing_ram_count}
-            - **Casing OD (in)**: {st.session_state.casing_od_in if st.session_state.casing_ram_count > 0 else '-'}
+            - **Casing OD (in)**: {", ".join(str(od) for od in st.session_state.casing_od_values) if st.session_state.casing_ram_count > 0 else '-'}
             - **Blind Shear Ram**: {st.session_state.blind_shear_ram_count}
             - **Casing Shear Ram**: {st.session_state.casing_shear_ram_count}
             - **Secondary Intervention System**: {st.session_state.secondary_intervention}
