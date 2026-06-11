@@ -260,6 +260,17 @@ def render_sequence() -> None:
                 st.rerun()
 
 
+def format_pipe_ram_specs(pipe_ram_specs: List[dict]) -> str:
+    if not pipe_ram_specs:
+        return "-"
+
+    formatted_specs = []
+    for spec in pipe_ram_specs:
+        diameter = spec["diameter"] or "not specified"
+        formatted_specs.append(f"Pipe Ram {spec['index']}: {spec['type']} ({diameter})")
+    return "; ".join(formatted_specs)
+
+
 def render_barriers_page() -> None:
     st.header("Barriers")
     st.write("Collect secondary barrier configuration for the selected well architecture.")
@@ -280,7 +291,7 @@ def render_barriers_page() -> None:
             key="annular_preventer_count",
         )
 
-        st.number_input(
+        pipe_ram_count = st.number_input(
             "Pipe Ram",
             min_value=0,
             step=1,
@@ -289,6 +300,53 @@ def render_barriers_page() -> None:
             key="pipe_ram_count",
         )
         st.caption("able to close against drillpipes (no shear)")
+
+        pipe_ram_specs = []
+        if pipe_ram_count > 0:
+            with st.expander("Pipe Ram closure diameters", expanded=True):
+                st.caption(
+                    "For each Pipe Ram, choose whether it is fixed or variable and enter "
+                    "the diameter it can close against."
+                )
+                for pipe_ram_index in range(1, pipe_ram_count + 1):
+                    st.markdown(f"**Pipe Ram {pipe_ram_index}**")
+                    type_col, diameter_col = st.columns([1, 2])
+                    pipe_ram_type_key = f"pipe_ram_type_{pipe_ram_index}"
+                    with type_col:
+                        pipe_ram_type = st.radio(
+                            "Type",
+                            ["Fixed", "Variable"],
+                            key=pipe_ram_type_key,
+                            horizontal=True,
+                        )
+                    with diameter_col:
+                        if pipe_ram_type == "Fixed":
+                            diameter = st.text_input(
+                                "Closing diameter (in)",
+                                placeholder="Example: 5 1/2",
+                                key=f"pipe_ram_fixed_diameter_{pipe_ram_index}",
+                            )
+                            help_text = "Enter one diameter value."
+                            if "x" in diameter.lower():
+                                st.warning("Fixed Pipe Ram diameters must be a single value.")
+                        else:
+                            diameter = st.text_input(
+                                "Closing diameter range (in)",
+                                placeholder="Example: 3 1/2 x 7 5/8",
+                                key=f"pipe_ram_variable_diameter_{pipe_ram_index}",
+                            )
+                            help_text = "Enter two diameter values separated by X."
+                            if diameter.strip() and "x" not in diameter.lower():
+                                st.warning("Variable Pipe Ram diameters must contain an X separator.")
+                        st.caption(help_text)
+                    pipe_ram_specs.append(
+                        {
+                            "index": pipe_ram_index,
+                            "type": pipe_ram_type,
+                            "diameter": diameter.strip(),
+                        }
+                    )
+        st.session_state.pipe_ram_specs = pipe_ram_specs
 
         casing_ram_count = st.number_input(
             "Casing Ram",
@@ -354,6 +412,7 @@ def render_barriers_page() -> None:
             - **Xtree**: {st.session_state.xtree_type}
             - **Annular Preventer**: {st.session_state.annular_preventer_count}
             - **Pipe Ram**: {st.session_state.pipe_ram_count}
+            - **Pipe Ram closure diameters**: {format_pipe_ram_specs(st.session_state.pipe_ram_specs) if st.session_state.pipe_ram_count > 0 else '-'}
             - **Casing Ram**: {st.session_state.casing_ram_count}
             - **Casing OD (in)**: {", ".join(str(od) for od in st.session_state.casing_od_values) if st.session_state.casing_ram_count > 0 else '-'}
             - **Blind Shear Ram**: {st.session_state.blind_shear_ram_count}
