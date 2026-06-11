@@ -177,12 +177,12 @@ def add_phase_form() -> None:
 
         details_col1, details_col2, details_col3, details_col4 = st.columns(4)
         with details_col1:
-            pore_gradient_sg = st.text_input("Pore gradient (s.g.)")
+            pore_gradient_sg = st.text_input("Max Pore Gradient (s.g.)")
             mud_type = st.selectbox("Mud Type", ["WBM", "OBM"])
             faults = st.selectbox("Faults", ["Yes", "No"])
         with details_col2:
             mud_weight_kg_l = st.text_input("Mud weight (kg/L)")
-            fracture_gradient_sg = st.text_input("Fracture gradient (s.g.)")
+            fracture_gradient_sg = st.text_input("Min Fracture Gradient (s.g.)")
             fractures = st.selectbox("Fractures", ["Yes", "No"])
         with details_col3:
             lithology = st.selectbox("Lithology", st.session_state.lithology_library)
@@ -237,10 +237,10 @@ def render_sequence() -> None:
         with st.expander(f"{idx}. {phase.name}", expanded=True):
             st.markdown(
                 f"""
-                - **Pore gradient (s.g.)**: {phase.pore_gradient_sg or '-'}
+                - **Max Pore Gradient (s.g.)**: {phase.pore_gradient_sg or '-'}
                 - **Mud weight (kg/L)**: {phase.mud_weight_kg_l or '-'}
                 - **Mud Type**: {phase.mud_type}
-                - **Fracture gradient (s.g.)**: {phase.fracture_gradient_sg or '-'}
+                - **Min Fracture Gradient (s.g.)**: {phase.fracture_gradient_sg or '-'}
                 - **Lithology**: {phase.lithology}
                 - **Faults**: {phase.faults}
                 - **Fractures**: {phase.fractures}
