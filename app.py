@@ -1,9 +1,10 @@
-import streamlit as st
 from dataclasses import dataclass
 from typing import List
 
+import streamlit as st
+
 st.set_page_config(
-    page_title="E-WISE | Blowout probability data collection",
+    page_title="E-WISE | Well builder",
     page_icon="🛢️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -20,15 +21,26 @@ class ActivityItem:
 @dataclass
 class PhaseItem:
     name: str
+    open_hole_diameter_in: float
+    tubular_type: str
+    tubular_od_in: float
+    depth_md_mrkb: float
+    drillpipe_od_in: float
     pore_gradient_sg: str
+    fracture_gradient_sg: str
     mud_weight_kg_l: str
     mud_type: str
-    fracture_gradient_sg: str
     lithology: str
+    depleted_levels: str
     faults: str
     fractures: str
-    depleted_levels: str
-    diameter_in: float
+    ecd: bool
+    mpd: bool
+    enbd: bool
+    annular_preventer_count: int
+    pipe_ram_count: int
+    blind_shear_ram_count: int
+    casing_shear_ram_count: int
     activities: List[ActivityItem]
 
 
@@ -57,9 +69,13 @@ DEFAULT_LITHOLOGY_LIBRARY = [
     "Carbonate",
 ]
 
+WELL_SECTIONS = ["DRILLING", "LOWER COMPLETION", "UPPER COMPLETION", "WELL TESTING", "P&A"]
 WELLHEAD_TYPES = ["Unitized", "Flanged"]
 XTREE_TYPES = ["Dry tee", "Subsea HXT", "Subsea VXT"]
 SECONDARY_INTERVENTION_OPTIONS = ["None", "Single ROV", "Dual ROV"]
+MUD_TYPES = ["WBM", "OBM"]
+YES_NO_OPTIONS = ["Yes", "No"]
+TUBULAR_TYPES = ["Casing", "Liner"]
 
 
 def bootstrap_state() -> None:
@@ -71,395 +87,245 @@ def bootstrap_state() -> None:
         st.session_state.lithology_library = DEFAULT_LITHOLOGY_LIBRARY.copy()
     if "phases" not in st.session_state:
         st.session_state.phases = []
-    if "sequence_locked" not in st.session_state:
-        st.session_state.sequence_locked = False
-    if "path_screenshot" not in st.session_state:
-        st.session_state.path_screenshot = None
+    if "section_enabled" not in st.session_state:
+        st.session_state.section_enabled = {section: section == "DRILLING" for section in WELL_SECTIONS}
     if "secondary_intervention" not in st.session_state:
         st.session_state.secondary_intervention = "None"
     if "acoustic_system" not in st.session_state:
         st.session_state.acoustic_system = False
 
 
+def render_catalog_editor(title: str, item_label: str, state_key: str, add_key: str, remove_key: str) -> None:
+    with st.expander(title, expanded=False):
+        new_item = st.text_input(f"Add {item_label}", key=add_key)
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button(f"Add {item_label}", key=f"{add_key}_button", use_container_width=True) and new_item.strip():
+                if new_item.strip() not in st.session_state[state_key]:
+                    st.session_state[state_key].append(new_item.strip())
+        with c2:
+            item_to_delete = st.selectbox(
+                f"Remove {item_label}",
+                options=[""] + st.session_state[state_key],
+                key=remove_key,
+            )
+            if st.button(f"Remove {item_label}", key=f"{remove_key}_button", use_container_width=True) and item_to_delete:
+                st.session_state[state_key] = [item for item in st.session_state[state_key] if item != item_to_delete]
+
+
 def sidebar_admin() -> None:
     with st.sidebar:
-        st.markdown("### Navigation")
-        builder_label = "Well architecture builder ✅" if st.session_state.sequence_locked else "Well architecture builder"
-        page = st.radio(
-            "Go to",
-            [builder_label, "Barriers"],
-            index=0,
-            label_visibility="collapsed",
-        )
-
-        st.markdown("---")
         st.markdown("### Admin Configuration")
-        with st.expander("Phase catalog", expanded=False):
-            new_phase = st.text_input("Add a phase")
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("Add phase", use_container_width=True) and new_phase.strip():
-                    if new_phase.strip() not in st.session_state.phase_library:
-                        st.session_state.phase_library.append(new_phase.strip())
-            with c2:
-                phase_to_delete = st.selectbox(
-                    "Remove phase",
-                    options=[""] + st.session_state.phase_library,
-                    key="phase_to_delete",
-                )
-                if st.button("Remove", use_container_width=True) and phase_to_delete:
-                    st.session_state.phase_library = [p for p in st.session_state.phase_library if p != phase_to_delete]
-
-        with st.expander("Activity catalog", expanded=False):
-            new_activity = st.text_input("Add an activity")
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("Add activity", use_container_width=True) and new_activity.strip():
-                    if new_activity.strip() not in st.session_state.activity_library:
-                        st.session_state.activity_library.append(new_activity.strip())
-            with c2:
-                activity_to_delete = st.selectbox(
-                    "Remove activity",
-                    options=[""] + st.session_state.activity_library,
-                    key="activity_to_delete",
-                )
-                if st.button("Remove activity", use_container_width=True) and activity_to_delete:
-                    st.session_state.activity_library = [
-                        o for o in st.session_state.activity_library if o != activity_to_delete
-                    ]
-
-        with st.expander("Lithology catalog", expanded=False):
-            new_lithology = st.text_input("Add lithology")
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("Add lithology", use_container_width=True) and new_lithology.strip():
-                    if new_lithology.strip() not in st.session_state.lithology_library:
-                        st.session_state.lithology_library.append(new_lithology.strip())
-            with c2:
-                lithology_to_delete = st.selectbox(
-                    "Remove lithology",
-                    options=[""] + st.session_state.lithology_library,
-                    key="lithology_to_delete",
-                )
-                if st.button("Remove lithology", use_container_width=True) and lithology_to_delete:
-                    st.session_state.lithology_library = [
-                        l for l in st.session_state.lithology_library if l != lithology_to_delete
-                    ]
-
-    return page
+        st.caption("Manage the selectable catalogs used while building the well.")
+        render_catalog_editor("Phase catalog", "phase", "phase_library", "new_phase", "phase_to_delete")
+        render_catalog_editor("Activity catalog", "activity", "activity_library", "new_activity", "activity_to_delete")
+        render_catalog_editor("Lithology catalog", "lithology", "lithology_library", "new_lithology", "lithology_to_delete")
 
 
-def render_upload() -> None:
-    upload = st.file_uploader(
-        "Upload here a screenshot of the path of your wellcost design, otherwise build the sequence of operations",
-        type=["png", "jpg", "jpeg", "webp", "pdf"],
-        key="path_screenshot_uploader",
-    )
-
-    if upload is None:
-        st.session_state.path_screenshot = None
-        return
-
-    st.session_state.path_screenshot = upload
-    st.info("Upload detected. You can still use the Build sequence tab to define operations.")
+def is_subsea_xtree(xtree_type: str) -> bool:
+    return "subsea" in xtree_type.lower()
 
 
-def add_phase_form() -> None:
-    st.markdown("### Build sequence")
+def render_well_header() -> None:
+    st.header("Well configuration")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.selectbox("Wellhead Type", WELLHEAD_TYPES, key="wellhead_type")
+    with col2:
+        xtree_type = st.selectbox("Xtree", XTREE_TYPES, key="xtree_type")
+
+    if is_subsea_xtree(xtree_type):
+        with st.container(border=True):
+            st.markdown("#### Secondary Intervention System")
+            st.radio(
+                "ROV availability",
+                SECONDARY_INTERVENTION_OPTIONS,
+                key="secondary_intervention",
+                horizontal=True,
+            )
+            st.checkbox("Acoustic System", key="acoustic_system")
+    else:
+        st.session_state.secondary_intervention = "None"
+        st.session_state.acoustic_system = False
+
+
+
+def render_section_activation(section: str) -> bool:
+    st.session_state.setdefault(f"section_toggle_{section}", st.session_state.section_enabled.get(section, False))
+    enabled = st.toggle(f"Activate {section}", key=f"section_toggle_{section}")
+    st.session_state.section_enabled[section] = enabled
+    return enabled
+
+
+def add_drilling_phase_form() -> None:
     with st.container(border=True):
-        st.markdown("#### Add next phase")
-        st.caption("consider phases after BOP installation only")
-        col1, col2 = st.columns([2, 1])
-        with col1:
+        st.markdown("#### Add next drilling phase")
+        top_col1, top_col2, top_col3 = st.columns([2, 1, 1])
+        with top_col1:
             phase_name = st.selectbox("Phase name", st.session_state.phase_library, key="new_phase_name")
-        with col2:
-            activity_count = st.number_input("Activities", min_value=1, max_value=10, value=1)
+        with top_col2:
+            activity_count = st.number_input("Activities in sequence", min_value=1, max_value=20, value=1)
+        with top_col3:
+            tubular_type = st.selectbox("Tubular type", TUBULAR_TYPES, key="new_tubular_type")
+
+        geometry_cols = st.columns(5)
+        with geometry_cols[0]:
+            open_hole_diameter = st.number_input("Open Hole (OH) diameter (in)", min_value=0.0, step=0.125, value=8.5)
+        with geometry_cols[1]:
+            tubular_od = st.number_input("OD tubular (in)", min_value=0.0, step=0.125, value=7.0)
+        with geometry_cols[2]:
+            depth_md_mrkb = st.number_input("Depth MD mRKB", min_value=0.0, step=10.0, value=1000.0)
+        with geometry_cols[3]:
+            drillpipe_od = st.number_input("Drillpipe OD (in)", min_value=0.0, step=0.125, value=5.0)
+        with geometry_cols[4]:
+            technology = st.multiselect("Drilling technology", ["e-cd", "MPD", "e-NBD"], key="new_drilling_technology")
 
         details_col1, details_col2, details_col3, details_col4 = st.columns(4)
         with details_col1:
             pore_gradient_sg = st.text_input("Max Pore Gradient (s.g.)")
-            mud_type = st.selectbox("Mud Type", ["WBM", "OBM"])
-            faults = st.selectbox("Faults", ["Yes", "No"])
+            mud_type = st.selectbox("Mud Type", MUD_TYPES)
         with details_col2:
-            mud_weight_kg_l = st.text_input("Mud weight (kg/L)")
             fracture_gradient_sg = st.text_input("Min Fracture Gradient (s.g.)")
-            fractures = st.selectbox("Fractures", ["Yes", "No"])
+            mud_weight_kg_l = st.text_input("Mud weight (kg/L)")
         with details_col3:
             lithology = st.selectbox("Lithology", st.session_state.lithology_library)
-            depleted_levels = st.selectbox("Depleted Levels", ["Yes", "No"])
+            depleted_levels = st.selectbox("Depleted Levels", YES_NO_OPTIONS)
         with details_col4:
-            diameter = st.number_input("Diameter (in)", min_value=0.0, step=0.25, value=8.5, key="new_phase_diameter")
+            faults = st.selectbox("Faults", YES_NO_OPTIONS)
+            fractures = st.selectbox("Fractures", YES_NO_OPTIONS)
+
+        bop_cols = st.columns(4)
+        with bop_cols[0]:
+            annular_preventer_count = st.number_input("Annular Preventer", min_value=1, max_value=2, value=1, step=1)
+        with bop_cols[1]:
+            pipe_ram_count = st.number_input("Pipe Ram", min_value=0, value=0, step=1)
+        with bop_cols[2]:
+            blind_shear_ram_count = st.number_input("Blind Shear Ram", min_value=0, value=0, step=1)
+        with bop_cols[3]:
+            casing_shear_ram_count = st.number_input("Casing Shear Ram", min_value=0, value=0, step=1)
 
         activities: List[ActivityItem] = []
+        st.markdown("#### Activity sequence")
         for i in range(activity_count):
-            st.markdown(f"**Activity {i + 1}**")
             c1, c2, c3 = st.columns([3, 1, 1])
             with c1:
-                activity_name = st.selectbox(
-                    "Activity",
-                    st.session_state.activity_library,
-                    key=f"new_activity_name_{i}",
-                    label_visibility="collapsed",
-                )
+                activity_name = st.selectbox("Activity", st.session_state.activity_library, key=f"new_activity_name_{i}")
             with c2:
-                duration = st.number_input("Time", min_value=0.0, step=0.5, value=6.0, key=f"new_activity_time_{i}")
+                duration = st.number_input("Duration", min_value=0.0, step=0.5, value=6.0, key=f"new_activity_time_{i}")
             with c3:
                 unit = st.selectbox("Unit", ["hours", "days"], key=f"new_activity_unit_{i}")
-
             activities.append(ActivityItem(activity_name, float(duration), unit))
 
-        if st.button("Add phase to sequence", type="primary", use_container_width=True):
+        if st.button("Add phase to drilling sequence", type="primary", use_container_width=True):
             st.session_state.phases.append(
                 PhaseItem(
                     name=phase_name,
+                    open_hole_diameter_in=float(open_hole_diameter),
+                    tubular_type=tubular_type,
+                    tubular_od_in=float(tubular_od),
+                    depth_md_mrkb=float(depth_md_mrkb),
+                    drillpipe_od_in=float(drillpipe_od),
                     pore_gradient_sg=pore_gradient_sg,
+                    fracture_gradient_sg=fracture_gradient_sg,
                     mud_weight_kg_l=mud_weight_kg_l,
                     mud_type=mud_type,
-                    fracture_gradient_sg=fracture_gradient_sg,
                     lithology=lithology,
+                    depleted_levels=depleted_levels,
                     faults=faults,
                     fractures=fractures,
-                    depleted_levels=depleted_levels,
-                    diameter_in=float(diameter),
+                    ecd="e-cd" in technology,
+                    mpd="MPD" in technology,
+                    enbd="e-NBD" in technology,
+                    annular_preventer_count=int(annular_preventer_count),
+                    pipe_ram_count=int(pipe_ram_count),
+                    blind_shear_ram_count=int(blind_shear_ram_count),
+                    casing_shear_ram_count=int(casing_shear_ram_count),
                     activities=activities,
                 )
             )
             st.success(f"Added phase: {phase_name}")
 
 
-def render_sequence() -> None:
-    st.markdown("### Current well sequence")
+def render_drilling_sequence() -> None:
+    st.markdown("#### Drilling phase sequence")
     if not st.session_state.phases:
-        st.info("No phase added yet. Start by adding your first phase.")
+        st.info("No drilling phase added yet. Add phases from first to last.")
         return
 
     for idx, phase in enumerate(st.session_state.phases, start=1):
-        with st.expander(f"{idx}. {phase.name}", expanded=True):
+        with st.expander(f"{idx}. {phase.name} — OH {phase.open_hole_diameter_in} in / {phase.tubular_type} OD {phase.tubular_od_in} in", expanded=True):
             st.markdown(
                 f"""
+                - **Depth MD mRKB**: {phase.depth_md_mrkb}
+                - **Drillpipe OD (in)**: {phase.drillpipe_od_in}
                 - **Max Pore Gradient (s.g.)**: {phase.pore_gradient_sg or '-'}
+                - **Min Fracture Gradient (s.g.)**: {phase.fracture_gradient_sg or '-'}
                 - **Mud weight (kg/L)**: {phase.mud_weight_kg_l or '-'}
                 - **Mud Type**: {phase.mud_type}
-                - **Min Fracture Gradient (s.g.)**: {phase.fracture_gradient_sg or '-'}
                 - **Lithology**: {phase.lithology}
-                - **Faults**: {phase.faults}
-                - **Fractures**: {phase.fractures}
-                - **Depleted Levels**: {phase.depleted_levels}
-                - **Diameter (in)**: {phase.diameter_in}
+                - **Depleted Levels / Faults / Fractures**: {phase.depleted_levels} / {phase.faults} / {phase.fractures}
+                - **e-cd / MPD / e-NBD**: {'Yes' if phase.ecd else 'No'} / {'Yes' if phase.mpd else 'No'} / {'Yes' if phase.enbd else 'No'}
+                - **Annular / Pipe Ram / Blind Shear Ram / Casing Shear Ram**: {phase.annular_preventer_count} / {phase.pipe_ram_count} / {phase.blind_shear_ram_count} / {phase.casing_shear_ram_count}
                 """
             )
             for act_idx, act in enumerate(phase.activities, start=1):
-                st.markdown(
-                    f"- **Activity {act_idx} · {act.name}** — Time: {act.duration_value} {act.duration_unit}"
-                )
-
-            if not st.session_state.sequence_locked and st.button(
-                f"Delete phase {idx}", key=f"delete_{idx}", use_container_width=True
-            ):
+                st.markdown(f"- **Activity {act_idx} · {act.name}** — Duration: {act.duration_value} {act.duration_unit}")
+            if st.button(f"Delete phase {idx}", key=f"delete_{idx}", use_container_width=True):
                 st.session_state.phases.pop(idx - 1)
                 st.rerun()
 
 
-def format_pipe_ram_specs(pipe_ram_specs: List[dict]) -> str:
-    if not pipe_ram_specs:
-        return "-"
-
-    formatted_specs = []
-    for spec in pipe_ram_specs:
-        diameter = spec["diameter"] or "not specified"
-        formatted_specs.append(f"Pipe Ram {spec['index']}: {spec['type']} ({diameter})")
-    return "; ".join(formatted_specs)
+def render_drilling_section() -> None:
+    left, right = st.columns([1.25, 1])
+    with left:
+        add_drilling_phase_form()
+    with right:
+        render_drilling_sequence()
 
 
-def render_barriers_page() -> None:
-    st.header("Barriers")
-    st.write("Collect secondary barrier configuration for the selected well architecture.")
+def render_placeholder_section(section: str) -> None:
+    with st.container(border=True):
+        st.info(f"{section} is active. Detailed inputs for this macro section can now be configured in the next iteration.")
 
-    top_col1, top_col2 = st.columns(2)
-    with top_col1:
-        st.selectbox("Wellhead Type", WELLHEAD_TYPES, key="wellhead_type")
-    with top_col2:
-        st.selectbox("Xtree", XTREE_TYPES, key="xtree_type")
 
-    with st.expander("BOP Stack", expanded=True):
-        st.number_input(
-            "Annular Preventer",
-            min_value=1,
-            max_value=2,
-            step=1,
-            value=1,
-            key="annular_preventer_count",
-        )
+def render_well_sections() -> None:
+    st.header("Well construction")
+    tabs = st.tabs(WELL_SECTIONS)
+    for section, tab in zip(WELL_SECTIONS, tabs):
+        with tab:
+            if not render_section_activation(section):
+                st.info("This section is screened until activated.")
+                continue
+            if section == "DRILLING":
+                render_drilling_section()
+            else:
+                render_placeholder_section(section)
 
-        pipe_ram_count = st.number_input(
-            "Pipe Ram",
-            min_value=0,
-            step=1,
-            value=0,
-            help="able to close against drillpipes (no shear)",
-            key="pipe_ram_count",
-        )
-        st.caption("able to close against drillpipes (no shear)")
 
-        pipe_ram_specs = []
-        if pipe_ram_count > 0:
-            with st.expander("Pipe Ram closure diameters", expanded=True):
-                st.caption(
-                    "For each Pipe Ram, choose whether it is fixed or variable and enter "
-                    "the diameter it can close against."
-                )
-                for pipe_ram_index in range(1, pipe_ram_count + 1):
-                    st.markdown(f"**Pipe Ram {pipe_ram_index}**")
-                    type_col, diameter_col = st.columns([1, 2])
-                    pipe_ram_type_key = f"pipe_ram_type_{pipe_ram_index}"
-                    with type_col:
-                        pipe_ram_type = st.radio(
-                            "Type",
-                            ["Fixed", "Variable"],
-                            key=pipe_ram_type_key,
-                            horizontal=True,
-                        )
-                    with diameter_col:
-                        if pipe_ram_type == "Fixed":
-                            diameter = st.text_input(
-                                "Closing diameter (in)",
-                                placeholder="Example: 5 1/2",
-                                key=f"pipe_ram_fixed_diameter_{pipe_ram_index}",
-                            )
-                            help_text = "Enter one diameter value."
-                            if "x" in diameter.lower():
-                                st.warning("Fixed Pipe Ram diameters must be a single value.")
-                        else:
-                            diameter = st.text_input(
-                                "Closing diameter range (in)",
-                                placeholder="Example: 3 1/2 x 7 5/8",
-                                key=f"pipe_ram_variable_diameter_{pipe_ram_index}",
-                            )
-                            help_text = "Enter two diameter values separated by X."
-                            if diameter.strip() and "x" not in diameter.lower():
-                                st.warning("Variable Pipe Ram diameters must contain an X separator.")
-                        st.caption(help_text)
-                    pipe_ram_specs.append(
-                        {
-                            "index": pipe_ram_index,
-                            "type": pipe_ram_type,
-                            "diameter": diameter.strip(),
-                        }
-                    )
-        st.session_state.pipe_ram_specs = pipe_ram_specs
-
-        casing_ram_count = st.number_input(
-            "Casing Ram",
-            min_value=0,
-            step=1,
-            value=0,
-            help="able to close against casing (no shear)",
-            key="casing_ram_count",
-        )
-        st.caption("able to close against casing (no shear)")
-
-        casing_od_values = []
-        if casing_ram_count > 0:
-            with st.expander("Casing OD", expanded=True):
-                for casing_ram_index in range(1, casing_ram_count + 1):
-                    casing_od_values.append(
-                        st.number_input(
-                            f"Casing Ram {casing_ram_index} OD (in)",
-                            min_value=0.0,
-                            step=0.125,
-                            value=9.625,
-                            key=f"casing_od_in_{casing_ram_index}",
-                        )
-                    )
-        st.session_state.casing_od_values = casing_od_values
-
-        st.number_input(
-            "Blind Shear Ram",
-            min_value=0,
-            step=1,
-            value=0,
-            help="able to shear drill pipes",
-            key="blind_shear_ram_count",
-        )
-        st.caption("able to shear drill pipes")
-
-        st.number_input(
-            "Casing Shear Ram",
-            min_value=0,
-            step=1,
-            value=0,
-            help="able to shear casing joints",
-            key="casing_shear_ram_count",
-        )
-        st.caption("able to shear casing joints")
-
-    with st.expander("Secondary Intervention System", expanded=True):
-        st.radio(
-            "ROV availability",
-            SECONDARY_INTERVENTION_OPTIONS,
-            key="secondary_intervention",
-            horizontal=True,
-        )
-        st.checkbox(
-            "Acoustic System",
-            key="acoustic_system",
-        )
-
-    with st.expander("Barrier selection summary", expanded=False):
+def render_summary() -> None:
+    with st.expander("Well build summary", expanded=False):
         st.markdown(
             f"""
-            - **Wellhead Type**: {st.session_state.wellhead_type}
-            - **Xtree**: {st.session_state.xtree_type}
-            - **Annular Preventer**: {st.session_state.annular_preventer_count}
-            - **Pipe Ram**: {st.session_state.pipe_ram_count}
-            - **Pipe Ram closure diameters**: {format_pipe_ram_specs(st.session_state.pipe_ram_specs) if st.session_state.pipe_ram_count > 0 else '-'}
-            - **Casing Ram**: {st.session_state.casing_ram_count}
-            - **Casing OD (in)**: {", ".join(str(od) for od in st.session_state.casing_od_values) if st.session_state.casing_ram_count > 0 else '-'}
-            - **Blind Shear Ram**: {st.session_state.blind_shear_ram_count}
-            - **Casing Shear Ram**: {st.session_state.casing_shear_ram_count}
-            - **Secondary Intervention System**: {st.session_state.secondary_intervention}
-            - **Acoustic System**: {'Yes' if st.session_state.acoustic_system else 'No'}
+            - **Wellhead Type**: {st.session_state.get('wellhead_type', '-')}
+            - **Xtree**: {st.session_state.get('xtree_type', '-')}
+            - **Secondary Intervention System**: {st.session_state.secondary_intervention if is_subsea_xtree(st.session_state.get('xtree_type', '')) else '-'}
+            - **Acoustic System**: {'Yes' if st.session_state.acoustic_system and is_subsea_xtree(st.session_state.get('xtree_type', '')) else 'No'}
+            - **Active sections**: {', '.join(section for section, enabled in st.session_state.section_enabled.items() if enabled) or '-'}
+            - **Drilling phases**: {len(st.session_state.phases)}
             """
         )
 
 
-def render_freeze_controls() -> None:
-    if st.session_state.sequence_locked:
-        st.success("Sequence frozen.")
-        if st.button("Unfreeze sequence", use_container_width=True):
-            st.session_state.sequence_locked = False
-            st.success("Sequence unfrozen. Editing is enabled again.")
-            st.rerun()
-        return
-
-    if st.button("Freeze sequence", use_container_width=True, type="primary"):
-        st.session_state.sequence_locked = True
-        st.success("Sequence frozen. Well architecture builder is now marked as completed.")
-        st.rerun()
-
-
 def main() -> None:
     bootstrap_state()
-    page = sidebar_admin()
+    sidebar_admin()
 
-    st.title("Blowout probability data collection")
-    st.write("Design drilling phases and activity sequence for blowout probability evaluation input.")
+    st.title("E-WISE Well Builder")
+    st.write("Build the complete well on a single page before submitting it for blowout probability evaluation.")
 
-    if page == "Barriers":
-        render_barriers_page()
-        return
-
-    render_upload()
-
-    left, right = st.columns([1.2, 1])
-    with left:
-        if not st.session_state.sequence_locked:
-            add_phase_form()
-        else:
-            st.info("The sequence is frozen and cannot be edited.")
-    with right:
-        render_sequence()
-        render_freeze_controls()
+    render_well_header()
+    render_well_sections()
+    render_summary()
 
 
 if __name__ == "__main__":
