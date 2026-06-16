@@ -60,8 +60,7 @@ DEFAULT_LITHOLOGY_LIBRARY = [
 ]
 
 WELL_SECTIONS = ["DRILLING", "LOWER COMPLETION", "UPPER COMPLETION", "WELL TESTING", "P&A"]
-WELLHEAD_TYPES = ["Unitized", "Flanged"]
-XTREE_TYPES = ["Dry tee", "Subsea HXT", "Subsea VXT"]
+WELLHEAD_TYPES = ["Dry WH - Unitized", "Dry WH - Flanged", "Subsea WH"]
 SECONDARY_INTERVENTION_OPTIONS = ["None", "Single ROV", "Dual ROV"]
 MUD_TYPES = ["WBM", "OBM"]
 YES_NO_OPTIONS = ["Yes", "No"]
@@ -122,19 +121,15 @@ def sidebar_admin() -> None:
         render_catalog_editor("Lithology catalog", "lithology", "lithology_library", "new_lithology", "lithology_to_delete")
 
 
-def is_subsea_xtree(xtree_type: str) -> bool:
-    return "subsea" in xtree_type.lower()
+def is_subsea_wellhead(wellhead_type: str) -> bool:
+    return wellhead_type == "Subsea WH"
 
 
 def render_well_header() -> None:
     st.header("Well configuration")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.selectbox("Wellhead Type", WELLHEAD_TYPES, key="wellhead_type")
-    with col2:
-        xtree_type = st.selectbox("Xtree", XTREE_TYPES, key="xtree_type")
+    wellhead_type = st.selectbox("Wellhead Type", WELLHEAD_TYPES, key="wellhead_type")
 
-    if not is_subsea_xtree(xtree_type):
+    if not is_subsea_wellhead(wellhead_type):
         st.session_state.secondary_intervention = "None"
         st.session_state.acoustic_system = False
 
@@ -147,7 +142,7 @@ def render_section_activation(section: str) -> bool:
 
 
 def render_secondary_intervention_system() -> None:
-    if not is_subsea_xtree(st.session_state.get("xtree_type", "")):
+    if not is_subsea_wellhead(st.session_state.get("wellhead_type", "")):
         st.session_state.secondary_intervention = "None"
         st.session_state.acoustic_system = False
         return
@@ -166,16 +161,19 @@ def render_secondary_intervention_system() -> None:
 def add_drilling_phase_form() -> None:
     with st.container(border=True):
         st.markdown("#### Add next drilling phase")
-        well_profile_tab, subsurface_tab, barriers_tab = st.tabs(
-            ["1) Well profile", "2) Subsurface characteristics", "3) Barriers"]
+        st.caption(
+            "Define the three independent phase characteristics below. Activities are configured separately after these sections."
         )
 
-        with well_profile_tab:
-            st.caption("Define the hole geometry, tubular, mud, drillpipe and drilling technology for the phase.")
+        with st.container(border=True):
+            st.markdown("##### 1) Well profile")
+            st.caption("Define the hole geometry, tubular, mud, pressure gradients, drillpipe and drilling technology for the phase.")
             profile_cols = st.columns(3)
             with profile_cols[0]:
                 open_hole_diameter = st.number_input("Open Hole (OH) diameter (in)", min_value=0.0, step=0.125, value=8.5)
                 depth_md_mrkb = st.number_input("Depth MD mRKB", min_value=0.0, step=10.0, value=1000.0)
+                pore_gradient_sg = st.text_input("Max Pore Gradient (s.g.)")
+                fracture_gradient_sg = st.text_input("Min Fracture Gradient (s.g.)")
             with profile_cols[1]:
                 tubular_type = st.selectbox("Tubular type", TUBULAR_TYPES, key="new_tubular_type")
                 tubular_od = st.number_input("Tubular OD (in)", min_value=0.0, step=0.125, value=7.0)
@@ -192,20 +190,20 @@ def add_drilling_phase_form() -> None:
             phase_name = format_phase_name(open_hole_diameter, tubular_od)
             st.caption(f"Phase name: {phase_name}")
 
-        with subsurface_tab:
-            st.caption("Define pressure gradients and geological characteristics for the phase.")
+        with st.container(border=True):
+            st.markdown("##### 2) Subsurface characteristics")
+            st.caption("Define geological characteristics for the phase.")
             subsurface_cols = st.columns(3)
             with subsurface_cols[0]:
-                pore_gradient_sg = st.text_input("Max Pore Gradient (s.g.)")
-                fracture_gradient_sg = st.text_input("Min Fracture Gradient (s.g.)")
-            with subsurface_cols[1]:
                 lithology = st.selectbox("Lithology", st.session_state.lithology_library)
+            with subsurface_cols[1]:
                 faults = st.selectbox("Faults", YES_NO_OPTIONS)
+                fractures = st.selectbox("Fractures", YES_NO_OPTIONS)
             with subsurface_cols[2]:
                 depleted_levels = st.selectbox("Depleted Levels", YES_NO_OPTIONS)
-                fractures = st.selectbox("Fractures", YES_NO_OPTIONS)
 
-        with barriers_tab:
+        with st.container(border=True):
+            st.markdown("##### 3) Barriers")
             st.caption("Define BOP barrier elements and closure capabilities for this phase.")
             bop_cols = st.columns(4)
             with bop_cols[0]:
@@ -238,8 +236,9 @@ def add_drilling_phase_form() -> None:
 
             render_secondary_intervention_system()
 
+    with st.container(border=True):
         st.markdown("#### Phase activities")
-        st.caption("Select the first phase activity here, then use the dedicated add button to append the next activities.")
+        st.caption("Activities are independent from well profile, subsurface characteristics and barriers.")
         st.session_state.setdefault("new_activity_rows", 1)
         if st.button("Add next activity", key="add_next_activity", use_container_width=True):
             st.session_state.new_activity_rows += 1
@@ -255,7 +254,6 @@ def add_drilling_phase_form() -> None:
                 unit = st.selectbox("Unit", ["hours", "days"], key=f"new_activity_unit_{i}")
             activities.append(ActivityItem(activity_name, float(duration), unit))
 
-        phase_name = format_phase_name(open_hole_diameter, tubular_od)
         st.caption(f"Phase name: {phase_name}")
 
         if st.button("Add phase to drilling sequence", type="primary", use_container_width=True):
@@ -351,9 +349,8 @@ def render_summary() -> None:
         st.markdown(
             f"""
             - **Wellhead Type**: {st.session_state.get('wellhead_type', '-')}
-            - **Xtree**: {st.session_state.get('xtree_type', '-')}
-            - **Secondary Intervention System**: {st.session_state.secondary_intervention if is_subsea_xtree(st.session_state.get('xtree_type', '')) else '-'}
-            - **Acoustic System**: {'Yes' if st.session_state.acoustic_system and is_subsea_xtree(st.session_state.get('xtree_type', '')) else 'No'}
+            - **Secondary Intervention System**: {st.session_state.secondary_intervention if is_subsea_wellhead(st.session_state.get('wellhead_type', '')) else '-'}
+            - **Acoustic System**: {'Yes' if st.session_state.acoustic_system and is_subsea_wellhead(st.session_state.get('wellhead_type', '')) else 'No'}
             - **Active sections**: {', '.join(section for section, enabled in st.session_state.section_enabled.items() if enabled) or '-'}
             - **Drilling phases**: {len(st.session_state.phases)}
             """
