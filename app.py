@@ -20,7 +20,6 @@ class ActivityItem:
 
 @dataclass
 class PhaseItem:
-    name: str
     open_hole_diameter_in: float
     tubular_type: str
     tubular_od_in: float
@@ -39,19 +38,10 @@ class PhaseItem:
     enbd: bool
     annular_preventer_count: int
     pipe_ram_count: int
+    pipe_ram_closure_targets: List[str]
     blind_shear_ram_count: int
     casing_shear_ram_count: int
     activities: List[ActivityItem]
-
-
-DEFAULT_PHASE_LIBRARY = [
-    "Conductor",
-    "Surface",
-    "Intermediate",
-    "Production",
-    "Completion",
-    "Workover",
-]
 
 DEFAULT_ACTIVITY_LIBRARY = [
     "Drill",
@@ -78,9 +68,20 @@ YES_NO_OPTIONS = ["Yes", "No"]
 TUBULAR_TYPES = ["Casing", "Liner"]
 
 
+def format_diameter(value: float) -> str:
+    formatted = f"{value:g}".replace(".", ",")
+    return f'{formatted}"'
+
+
+def format_phase_name(open_hole_diameter: float, tubular_od: float) -> str:
+    return f"{format_diameter(open_hole_diameter)} x {format_diameter(tubular_od)}"
+
+
+def format_pipe_ram_targets(targets: List[str]) -> str:
+    return ", ".join(f"Ram {idx}: {target}" for idx, target in enumerate(targets, start=1)) or "-"
+
+
 def bootstrap_state() -> None:
-    if "phase_library" not in st.session_state:
-        st.session_state.phase_library = DEFAULT_PHASE_LIBRARY.copy()
     if "activity_library" not in st.session_state:
         st.session_state.activity_library = DEFAULT_ACTIVITY_LIBRARY.copy()
     if "lithology_library" not in st.session_state:
@@ -117,7 +118,6 @@ def sidebar_admin() -> None:
     with st.sidebar:
         st.markdown("### Admin Configuration")
         st.caption("Manage the selectable catalogs used while building the well.")
-        render_catalog_editor("Phase catalog", "phase", "phase_library", "new_phase", "phase_to_delete")
         render_catalog_editor("Activity catalog", "activity", "activity_library", "new_activity", "activity_to_delete")
         render_catalog_editor("Lithology catalog", "lithology", "lithology_library", "new_lithology", "lithology_to_delete")
 
@@ -160,19 +160,17 @@ def render_section_activation(section: str) -> bool:
 def add_drilling_phase_form() -> None:
     with st.container(border=True):
         st.markdown("#### Add next drilling phase")
-        top_col1, top_col2, top_col3 = st.columns([2, 1, 1])
+        top_col1, top_col2 = st.columns(2)
         with top_col1:
-            phase_name = st.selectbox("Phase name", st.session_state.phase_library, key="new_phase_name")
-        with top_col2:
-            activity_count = st.number_input("Activities in sequence", min_value=1, max_value=20, value=1)
-        with top_col3:
             tubular_type = st.selectbox("Tubular type", TUBULAR_TYPES, key="new_tubular_type")
+        with top_col2:
+            st.caption("The drilling phase name is generated automatically as OH diameter x CSG diameter.")
 
         geometry_cols = st.columns(5)
         with geometry_cols[0]:
             open_hole_diameter = st.number_input("Open Hole (OH) diameter (in)", min_value=0.0, step=0.125, value=8.5)
         with geometry_cols[1]:
-            tubular_od = st.number_input("OD tubular (in)", min_value=0.0, step=0.125, value=7.0)
+            tubular_od = st.number_input("CSG diameter (in)", min_value=0.0, step=0.125, value=7.0)
         with geometry_cols[2]:
             depth_md_mrkb = st.number_input("Depth MD mRKB", min_value=0.0, step=10.0, value=1000.0)
         with geometry_cols[3]:
@@ -204,9 +202,30 @@ def add_drilling_phase_form() -> None:
         with bop_cols[3]:
             casing_shear_ram_count = st.number_input("Casing Shear Ram", min_value=0, value=0, step=1)
 
+        pipe_ram_closure_targets: List[str] = []
+        if pipe_ram_count >= 2:
+            with st.expander("Pipe Ram closure capabilities", expanded=True):
+                st.caption("For each pipe ram, select whether it can close around the drillpipe OD or the tubular OD.")
+                for ram_idx in range(int(pipe_ram_count)):
+                    target = st.radio(
+                        f"Pipe Ram {ram_idx + 1} closes around",
+                        [
+                            f"Drillpipe OD ({format_diameter(drillpipe_od)})",
+                            f"Tubular OD ({format_diameter(tubular_od)})",
+                        ],
+                        key=f"pipe_ram_closure_target_{ram_idx}",
+                        horizontal=True,
+                    )
+                    pipe_ram_closure_targets.append(target)
+
+        st.markdown("#### Phase activities")
+        st.caption("Select the first phase activity here, then use the dedicated add button to append the next activities.")
+        st.session_state.setdefault("new_activity_rows", 1)
+        if st.button("Add next activity", key="add_next_activity", use_container_width=True):
+            st.session_state.new_activity_rows += 1
+
         activities: List[ActivityItem] = []
-        st.markdown("#### Activity sequence")
-        for i in range(activity_count):
+        for i in range(st.session_state.new_activity_rows):
             c1, c2, c3 = st.columns([3, 1, 1])
             with c1:
                 activity_name = st.selectbox("Activity", st.session_state.activity_library, key=f"new_activity_name_{i}")
@@ -216,10 +235,12 @@ def add_drilling_phase_form() -> None:
                 unit = st.selectbox("Unit", ["hours", "days"], key=f"new_activity_unit_{i}")
             activities.append(ActivityItem(activity_name, float(duration), unit))
 
+        phase_name = format_phase_name(open_hole_diameter, tubular_od)
+        st.caption(f"Phase name: {phase_name}")
+
         if st.button("Add phase to drilling sequence", type="primary", use_container_width=True):
             st.session_state.phases.append(
                 PhaseItem(
-                    name=phase_name,
                     open_hole_diameter_in=float(open_hole_diameter),
                     tubular_type=tubular_type,
                     tubular_od_in=float(tubular_od),
@@ -238,11 +259,13 @@ def add_drilling_phase_form() -> None:
                     enbd="e-NBD" in technology,
                     annular_preventer_count=int(annular_preventer_count),
                     pipe_ram_count=int(pipe_ram_count),
+                    pipe_ram_closure_targets=pipe_ram_closure_targets,
                     blind_shear_ram_count=int(blind_shear_ram_count),
                     casing_shear_ram_count=int(casing_shear_ram_count),
                     activities=activities,
                 )
             )
+            st.session_state.new_activity_rows = 1
             st.success(f"Added phase: {phase_name}")
 
 
@@ -253,7 +276,7 @@ def render_drilling_sequence() -> None:
         return
 
     for idx, phase in enumerate(st.session_state.phases, start=1):
-        with st.expander(f"{idx}. {phase.name} — OH {phase.open_hole_diameter_in} in / {phase.tubular_type} OD {phase.tubular_od_in} in", expanded=True):
+        with st.expander(f"{idx}. {format_phase_name(phase.open_hole_diameter_in, phase.tubular_od_in)}", expanded=True):
             st.markdown(
                 f"""
                 - **Depth MD mRKB**: {phase.depth_md_mrkb}
@@ -266,6 +289,7 @@ def render_drilling_sequence() -> None:
                 - **Depleted Levels / Faults / Fractures**: {phase.depleted_levels} / {phase.faults} / {phase.fractures}
                 - **e-cd / MPD / e-NBD**: {'Yes' if phase.ecd else 'No'} / {'Yes' if phase.mpd else 'No'} / {'Yes' if phase.enbd else 'No'}
                 - **Annular / Pipe Ram / Blind Shear Ram / Casing Shear Ram**: {phase.annular_preventer_count} / {phase.pipe_ram_count} / {phase.blind_shear_ram_count} / {phase.casing_shear_ram_count}
+                - **Pipe Ram closure targets**: {format_pipe_ram_targets(phase.pipe_ram_closure_targets)}
                 """
             )
             for act_idx, act in enumerate(phase.activities, start=1):
