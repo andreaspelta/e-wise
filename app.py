@@ -134,20 +134,9 @@ def render_well_header() -> None:
     with col2:
         xtree_type = st.selectbox("Xtree", XTREE_TYPES, key="xtree_type")
 
-    if is_subsea_xtree(xtree_type):
-        with st.container(border=True):
-            st.markdown("#### Secondary Intervention System")
-            st.radio(
-                "ROV availability",
-                SECONDARY_INTERVENTION_OPTIONS,
-                key="secondary_intervention",
-                horizontal=True,
-            )
-            st.checkbox("Acoustic System", key="acoustic_system")
-    else:
+    if not is_subsea_xtree(xtree_type):
         st.session_state.secondary_intervention = "None"
         st.session_state.acoustic_system = False
-
 
 
 def render_section_activation(section: str) -> bool:
@@ -157,66 +146,97 @@ def render_section_activation(section: str) -> bool:
     return enabled
 
 
+def render_secondary_intervention_system() -> None:
+    if not is_subsea_xtree(st.session_state.get("xtree_type", "")):
+        st.session_state.secondary_intervention = "None"
+        st.session_state.acoustic_system = False
+        return
+
+    with st.container(border=True):
+        st.markdown("##### Secondary Intervention System")
+        st.radio(
+            "ROV availability",
+            SECONDARY_INTERVENTION_OPTIONS,
+            key="secondary_intervention",
+            horizontal=True,
+        )
+        st.checkbox("Acoustic System", key="acoustic_system")
+
+
 def add_drilling_phase_form() -> None:
     with st.container(border=True):
         st.markdown("#### Add next drilling phase")
-        top_col1, top_col2 = st.columns(2)
-        with top_col1:
-            tubular_type = st.selectbox("Tubular type", TUBULAR_TYPES, key="new_tubular_type")
-        with top_col2:
-            st.caption("The drilling phase name is generated automatically as OH diameter x CSG diameter.")
+        well_profile_tab, subsurface_tab, barriers_tab = st.tabs(
+            ["1) Well profile", "2) Subsurface characteristics", "3) Barriers"]
+        )
 
-        geometry_cols = st.columns(5)
-        with geometry_cols[0]:
-            open_hole_diameter = st.number_input("Open Hole (OH) diameter (in)", min_value=0.0, step=0.125, value=8.5)
-        with geometry_cols[1]:
-            tubular_od = st.number_input("CSG diameter (in)", min_value=0.0, step=0.125, value=7.0)
-        with geometry_cols[2]:
-            depth_md_mrkb = st.number_input("Depth MD mRKB", min_value=0.0, step=10.0, value=1000.0)
-        with geometry_cols[3]:
-            drillpipe_od = st.number_input("Drillpipe OD (in)", min_value=0.0, step=0.125, value=5.0)
-        with geometry_cols[4]:
-            technology = st.multiselect("Drilling technology", ["e-cd", "MPD", "e-NBD"], key="new_drilling_technology")
+        with well_profile_tab:
+            st.caption("Define the hole geometry, tubular, mud, drillpipe and drilling technology for the phase.")
+            profile_cols = st.columns(3)
+            with profile_cols[0]:
+                open_hole_diameter = st.number_input("Open Hole (OH) diameter (in)", min_value=0.0, step=0.125, value=8.5)
+                depth_md_mrkb = st.number_input("Depth MD mRKB", min_value=0.0, step=10.0, value=1000.0)
+            with profile_cols[1]:
+                tubular_type = st.selectbox("Tubular type", TUBULAR_TYPES, key="new_tubular_type")
+                tubular_od = st.number_input("Tubular OD (in)", min_value=0.0, step=0.125, value=7.0)
+            with profile_cols[2]:
+                mud_type = st.selectbox("Mud Type", MUD_TYPES)
+                mud_weight_kg_l = st.text_input("Mud weight (kg/L)")
 
-        details_col1, details_col2, details_col3, details_col4 = st.columns(4)
-        with details_col1:
-            pore_gradient_sg = st.text_input("Max Pore Gradient (s.g.)")
-            mud_type = st.selectbox("Mud Type", MUD_TYPES)
-        with details_col2:
-            fracture_gradient_sg = st.text_input("Min Fracture Gradient (s.g.)")
-            mud_weight_kg_l = st.text_input("Mud weight (kg/L)")
-        with details_col3:
-            lithology = st.selectbox("Lithology", st.session_state.lithology_library)
-            depleted_levels = st.selectbox("Depleted Levels", YES_NO_OPTIONS)
-        with details_col4:
-            faults = st.selectbox("Faults", YES_NO_OPTIONS)
-            fractures = st.selectbox("Fractures", YES_NO_OPTIONS)
+            drill_cols = st.columns(2)
+            with drill_cols[0]:
+                drillpipe_od = st.number_input("Drillpipe OD (in)", min_value=0.0, step=0.125, value=5.0)
+            with drill_cols[1]:
+                technology = st.multiselect("Drilling technology", ["e-cd", "MPD", "e-NBD"], key="new_drilling_technology")
 
-        bop_cols = st.columns(4)
-        with bop_cols[0]:
-            annular_preventer_count = st.number_input("Annular Preventer", min_value=1, max_value=2, value=1, step=1)
-        with bop_cols[1]:
-            pipe_ram_count = st.number_input("Pipe Ram", min_value=0, value=0, step=1)
-        with bop_cols[2]:
-            blind_shear_ram_count = st.number_input("Blind Shear Ram", min_value=0, value=0, step=1)
-        with bop_cols[3]:
-            casing_shear_ram_count = st.number_input("Casing Shear Ram", min_value=0, value=0, step=1)
+            phase_name = format_phase_name(open_hole_diameter, tubular_od)
+            st.caption(f"Phase name: {phase_name}")
 
-        pipe_ram_closure_targets: List[str] = []
-        if pipe_ram_count >= 2:
-            with st.expander("Pipe Ram closure capabilities", expanded=True):
-                st.caption("For each pipe ram, select whether it can close around the drillpipe OD or the tubular OD.")
-                for ram_idx in range(int(pipe_ram_count)):
-                    target = st.radio(
-                        f"Pipe Ram {ram_idx + 1} closes around",
-                        [
-                            f"Drillpipe OD ({format_diameter(drillpipe_od)})",
-                            f"Tubular OD ({format_diameter(tubular_od)})",
-                        ],
-                        key=f"pipe_ram_closure_target_{ram_idx}",
-                        horizontal=True,
+        with subsurface_tab:
+            st.caption("Define pressure gradients and geological characteristics for the phase.")
+            subsurface_cols = st.columns(3)
+            with subsurface_cols[0]:
+                pore_gradient_sg = st.text_input("Max Pore Gradient (s.g.)")
+                fracture_gradient_sg = st.text_input("Min Fracture Gradient (s.g.)")
+            with subsurface_cols[1]:
+                lithology = st.selectbox("Lithology", st.session_state.lithology_library)
+                faults = st.selectbox("Faults", YES_NO_OPTIONS)
+            with subsurface_cols[2]:
+                depleted_levels = st.selectbox("Depleted Levels", YES_NO_OPTIONS)
+                fractures = st.selectbox("Fractures", YES_NO_OPTIONS)
+
+        with barriers_tab:
+            st.caption("Define BOP barrier elements and closure capabilities for this phase.")
+            bop_cols = st.columns(4)
+            with bop_cols[0]:
+                annular_preventer_count = st.number_input("Annular Preventer", min_value=1, max_value=2, value=1, step=1)
+            with bop_cols[1]:
+                pipe_ram_count = st.number_input("Pipe Ram", min_value=0, value=0, step=1)
+            with bop_cols[2]:
+                blind_shear_ram_count = st.number_input("Blind Shear Ram", min_value=0, value=0, step=1)
+            with bop_cols[3]:
+                casing_shear_ram_count = st.number_input("Casing Shear Ram", min_value=0, value=0, step=1)
+
+            pipe_ram_closure_targets: List[str] = []
+            if pipe_ram_count >= 2:
+                with st.expander("Pipe Ram closure capabilities", expanded=True):
+                    st.caption(
+                        "For each pipe ram, select all supported closure targets. Drillpipe OD and tubular OD are not mutually exclusive."
                     )
-                    pipe_ram_closure_targets.append(target)
+                    closure_options = [
+                        f"Drillpipe OD ({format_diameter(drillpipe_od)})",
+                        f"Tubular OD ({format_diameter(tubular_od)})",
+                    ]
+                    for ram_idx in range(int(pipe_ram_count)):
+                        targets = st.multiselect(
+                            f"Pipe Ram {ram_idx + 1} closes around",
+                            closure_options,
+                            default=[closure_options[0]],
+                            key=f"pipe_ram_closure_target_{ram_idx}",
+                        )
+                        pipe_ram_closure_targets.append(" + ".join(targets) if targets else "-")
+
+            render_secondary_intervention_system()
 
         st.markdown("#### Phase activities")
         st.caption("Select the first phase activity here, then use the dedicated add button to append the next activities.")
